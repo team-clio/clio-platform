@@ -1,0 +1,9 @@
+[submodule "services/clio-admin"]
+	path = services/clio-admin
+	url = https://github.com/team-clio/clio-admin.git
+[submodule "services/clio-server"]
+	path = services/clio-server
+	url = https://github.com/team-clio/clio-server.git
+[submodule "services/clio-agent-graph"]
+	path = services/clio-agent-graph
+	url = https://github.com/team-clio/clio-agent-graph.git
