@@ -1,0 +1,11 @@
+**
+!docker/
+!docker/admin/
+!docker/admin/**
+!services/
+!services/clio-admin/
+!services/clio-admin/**
+services/clio-admin/node_modules
+services/clio-admin/dist
+services/clio-admin/.git
+

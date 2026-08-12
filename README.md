@@ -38,9 +38,45 @@ git add services/clio-server
 git commit -m "chore: clio-server 버전 갱신"
 ```
 
+## Core stack 실행
+
+Admin, API 서버, PostgreSQL(pgvector)을 함께 실행합니다.
+
+```bash
+cp .env.example .env
+docker compose up --build -d
+docker compose ps
+```
+
+- Admin: <http://localhost:3000>
+- API Server: <http://localhost:8080>
+- PostgreSQL: `localhost:15432`
+
+Admin 컨테이너의 Nginx가 `/api` 요청을 API 서버로 전달합니다. 호스트 포트는 `.env`에서 변경할 수
+있습니다.
+
+### Smoke test
+
+전체 요청 경로 `Admin Nginx → API Server → PostgreSQL`을 통해 프로젝트를 생성하고 목록에서 다시
+조회합니다.
+
+```bash
+./scripts/smoke-test.sh
+```
+
+### 종료
+
+```bash
+docker compose down
+```
+
+데이터 볼륨까지 초기화하려면 명시적으로 다음 명령을 사용합니다.
+
+```bash
+docker compose down --volumes
+```
+
 ## 다음 작업
 
-- 루트 `compose.yaml`에서 Admin, API 서버, PostgreSQL을 묶습니다.
 - `full` profile에 Agent Graph와 PCM PostgreSQL을 추가합니다.
-- 서비스 healthcheck와 통합 smoke test를 추가합니다.
-
+- CI에서 core stack smoke test를 실행합니다.
