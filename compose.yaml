@@ -51,6 +51,93 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  pcm-postgres:
+    profiles: ["full"]
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${CLIO_PCM_POSTGRES_DB:-clio_pcm}
+      POSTGRES_USER: ${CLIO_PCM_POSTGRES_USER:-clio}
+      POSTGRES_PASSWORD: ${CLIO_PCM_POSTGRES_PASSWORD:-clio_dev_password}
+    ports:
+      - "${CLIO_PCM_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - clio-pcm-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${CLIO_PCM_POSTGRES_USER:-clio} -d ${CLIO_PCM_POSTGRES_DB:-clio_pcm}",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  ollama:
+    profiles: ["full"]
+    image: ollama/ollama:0.32.3
+    environment:
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-qwen3-embedding:0.6b}
+      OLLAMA_HOST: 0.0.0.0:11434
+    entrypoint: ["/bin/sh", "/bootstrap.sh"]
+    ports:
+      - "${CLIO_OLLAMA_PORT:-11434}:11434"
+    volumes:
+      - clio-ollama:/root/.ollama
+      - ./docker/ollama/bootstrap.sh:/bootstrap.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'OLLAMA_HOST=http://127.0.0.1:11434 ollama show "$${OLLAMA_EMBEDDING_MODEL}" >/dev/null 2>&1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 120
+      start_period: 10s
+    restart: unless-stopped
+
+  clio-agent-graph:
+    profiles: ["full"]
+    build:
+      context: ./services/clio-agent-graph
+      dockerfile: ../../docker/agent-graph/Dockerfile
+    environment:
+      CLIO_MODEL: ${CLIO_MODEL:-openai:gpt-4.1-mini}
+      CLIO_MODEL_BASE_URL: ${CLIO_MODEL_BASE_URL:-}
+      CLIO_MODEL_API_KEY_ENV: ${CLIO_MODEL_API_KEY_ENV:-}
+      CLIO_MODEL_EXTRA_BODY: ${CLIO_MODEL_EXTRA_BODY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CLIO_PCM_DATABASE_URL: postgresql://${CLIO_PCM_POSTGRES_USER:-clio}:${CLIO_PCM_POSTGRES_PASSWORD:-clio_dev_password}@pcm-postgres:5432/${CLIO_PCM_POSTGRES_DB:-clio_pcm}
+      CLIO_DATABASE_URL: postgresql+psycopg://${CLIO_PCM_POSTGRES_USER:-clio}:${CLIO_PCM_POSTGRES_PASSWORD:-clio_dev_password}@pcm-postgres:5432/${CLIO_PCM_POSTGRES_DB:-clio_pcm}
+      CLIO_PCM_DATA_ROOT: /data/pcm
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-qwen3-embedding:0.6b}
+      CLIO_OLLAMA_BASE_URL: http://ollama:11434
+    ports:
+      - "${CLIO_AGENT_GRAPH_PORT:-2024}:2024"
+    volumes:
+      - clio-pcm-data:/data/pcm
+    depends_on:
+      pcm-postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import socket; s=socket.create_connection(('127.0.0.1', 2024), 2); s.close()",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
+    restart: unless-stopped
+
 volumes:
   clio-postgres:
-
+  clio-pcm-postgres:
+  clio-ollama:
+  clio-pcm-data:

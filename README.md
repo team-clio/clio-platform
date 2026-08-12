@@ -76,7 +76,27 @@ docker compose down
 docker compose down --volumes
 ```
 
+## Full stack 실행
+
+Core stack에 Agent Graph, PCM PostgreSQL(pgvector), Ollama embedding server를 추가합니다.
+
+```bash
+cp .env.example .env
+# .env에 OPENAI_API_KEY 등 사용할 LLM provider credential을 입력합니다.
+docker compose --profile full up --build -d
+docker compose --profile full ps
+```
+
+- Agent Graph API: <http://localhost:2024>
+- Agent Graph API 문서: <http://localhost:2024/docs>
+- PCM PostgreSQL: `localhost:55432`
+- Ollama: <http://localhost:11434>
+
+`CLIO_MODEL`은 `provider:model` 형식이며 기본값은 `openai:gpt-4.1-mini`입니다. 실제 API key는
+Git에 포함되지 않는 루트 `.env`에만 저장합니다. Agent Graph 컨테이너는 루트 설정을 받고,
+컨테이너 내부에서는 PCM PostgreSQL과 Ollama의 Compose 서비스 이름으로 연결합니다.
+
 ## 다음 작업
 
-- `full` profile에 Agent Graph와 PCM PostgreSQL을 추가합니다.
 - CI에서 core stack smoke test를 실행합니다.
+- Clio Server와 Agent Graph 사이의 실제 요청 경계를 연결합니다.
