@@ -140,7 +140,7 @@ Git에 포함되지 않는 루트 `.env`에만 저장합니다. Agent Graph 컨�
 
 ## 홈페이지
 
-`site/index.html`은 Clio 소개 페이지입니다. 외부 의존성 없는 정적 HTML 한 장이라 그대로 호스팅하면 됩니다.
+`site/index.html`은 Clio 소개 페이지입니다. 빌드 과정이 없는 정적 HTML 한 장이라 웹 서버에 그대로 올리면 됩니다. (글꼴만 Google Fonts에서 불러옴)
 
 ## 라이선스
 
