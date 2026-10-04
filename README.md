@@ -138,6 +138,10 @@ Git에 포함되지 않는 루트 `.env`에만 저장합니다. Agent Graph 컨�
 - CI에서 core stack smoke test를 실행합니다.
 - Clio Server와 Agent Graph 사이의 실제 요청 경계를 연결합니다.
 
+## 홈페이지
+
+`site/index.html`은 Clio 소개 페이지입니다. 빌드 과정이 없는 정적 HTML 한 장이라 웹 서버에 그대로 올리면 됩니다. (글꼴만 Google Fonts에서 불러옴)
+
 ## 라이선스
 
 [Apache License 2.0](LICENSE)
