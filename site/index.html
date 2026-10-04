@@ -1,0 +1,900 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clio</title>
+<meta name="description" content="Clio는 버그 리포트를 수집하고, 같은 원인의 오류를 이슈로 묶어, 프로젝트 문서와 소스코드에 근거한 분석을 제공하는 오픈소스 서비스입니다.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: Swiss spec sheet. 12-column grid with exposed hairlines, radius 0.
+   Vermilion marks where a person steps in; ink marks what runs automatically. */
+:root {
+  --paper: #FFFFFF;
+  --ink: #101112;
+  --ink-2: #4A4D50;
+  --ink-3: #8A8D8F;
+  --rule: #EDEDE8;
+  --rule-strong: #D9D9D2;
+  --panel: #F7F7F4;
+  --human: #D6421F;
+  --human-soft: #FBE9E4;
+  --code-bg: #101112;
+  --code-fg: #EDEDE8;
+  --code-dim: #8A8D8F;
+  --sans: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --gutter: clamp(16px, 5.5vw, 92px);
+  --max: 1500px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #101112; --ink: #EDEDE8; --ink-2: #B4B6B3; --ink-3: #7D8082;
+    --rule: #232527; --rule-strong: #34373A; --panel: #17191A;
+    --human: #F0643F; --human-soft: #2A1712;
+    --code-bg: #0A0B0B; --code-fg: #EDEDE8; --code-dim: #7D8082;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #101112; --ink: #EDEDE8; --ink-2: #B4B6B3; --ink-3: #7D8082;
+  --rule: #232527; --rule-strong: #34373A; --panel: #17191A;
+  --human: #F0643F; --human-soft: #2A1712;
+  --code-bg: #0A0B0B; --code-fg: #EDEDE8; --code-dim: #7D8082;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 400 16px/1.7 var(--sans); word-break: keep-all; overflow-wrap: anywhere;
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--human); outline-offset: 2px; }
+code, kbd, pre, .mono { font-family: var(--mono); }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+
+.wrap { max-width: var(--max); margin: 0 auto; padding-inline: var(--gutter); }
+
+/* Exposed grid hairlines behind every section */
+.grid-bg { position: relative; }
+.grid-bg::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  max-width: var(--max); margin: 0 auto; left: 0; right: 0;
+  background-image: linear-gradient(to right, var(--rule) 1px, transparent 1px);
+  background-size: calc((100% - 2 * var(--gutter)) / 12) 100%;
+  background-position: var(--gutter) 0;
+  background-repeat: repeat-x;
+  -webkit-mask: linear-gradient(to right, transparent var(--gutter), #000 var(--gutter), #000 calc(100% - var(--gutter)), transparent calc(100% - var(--gutter)));
+          mask: linear-gradient(to right, transparent var(--gutter), #000 var(--gutter), #000 calc(100% - var(--gutter)), transparent calc(100% - var(--gutter)));
+}
+.grid-bg > * { position: relative; z-index: 1; }
+@media (max-width: 760px) { .grid-bg::before { display: none; } }
+
+.label {
+  font: 500 12px/1.4 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+}
+.label .h { color: var(--human); }
+
+/* ---------- Nav ---------- */
+.nav {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--rule);
+}
+.nav .wrap { display: flex; align-items: center; gap: 28px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 600 18px/1 var(--sans); letter-spacing: -.01em; }
+.brand-mark { width: 22px; height: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.brand-mark i { background: var(--ink); }
+.brand-mark i:nth-child(4) { background: var(--human); }
+.nav-links { display: flex; gap: 24px; margin-left: auto; align-items: center; }
+.nav-links a { text-decoration: none; font-size: 14px; color: var(--ink-2); }
+.nav-links a:hover { color: var(--ink); }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px;
+  font: 500 14px/1 var(--sans); text-decoration: none; border: 1px solid var(--ink);
+  background: var(--ink); color: var(--paper); cursor: pointer; white-space: nowrap;
+}
+.btn.ghost { background: transparent; color: var(--ink); }
+.btn:hover { opacity: .88; }
+.btn svg { width: 16px; height: 16px; fill: currentColor; }
+@media (max-width: 760px) { .nav-links a.hide-sm { display: none; } .nav .wrap { gap: 12px; } }
+
+/* ---------- Hero ---------- */
+.hero { border-bottom: 1px solid var(--rule); }
+.hero .wrap {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: 0; padding-block: clamp(48px, 8vw, 104px) clamp(48px, 7vw, 88px); row-gap: 40px;
+}
+.hero-copy { grid-column: 1 / span 7; padding-right: 32px; display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.hero-demo { grid-column: 8 / span 5; min-width: 0; }
+.status-pill {
+  align-self: flex-start; display: inline-flex; gap: 10px; align-items: center;
+  font: 500 12px/1 var(--mono); padding: 7px 10px; border: 1px solid var(--rule-strong); color: var(--ink-2); text-decoration: none;
+}
+.status-pill b { color: var(--human); font-weight: 600; }
+.hero h1 {
+  font-size: clamp(38px, 5.6vw, 76px); line-height: 1.08; letter-spacing: -.035em; font-weight: 700;
+}
+.hero h1 em { font-style: normal; color: var(--ink-3); }
+.lede { font-size: clamp(17px, 1.5vw, 19px); color: var(--ink-2); max-width: 36em; }
+
+.install { border: 1px solid var(--ink); max-width: 640px; }
+.tabs { display: flex; border-bottom: 1px solid var(--ink); overflow-x: auto; }
+.tab {
+  font: 500 13px/1 var(--mono); padding: 12px 16px; border: 0; border-right: 1px solid var(--rule-strong);
+  background: transparent; color: var(--ink-3); cursor: pointer; white-space: nowrap;
+}
+.tab[aria-selected="true"] { color: var(--ink); background: var(--panel); box-shadow: inset 0 -2px 0 var(--ink); }
+.cmd { display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: var(--paper); }
+.cmd pre { margin: 0; flex: 1; min-width: 0; overflow-x: auto; font-size: 14px; line-height: 1.75; }
+.cmd pre .p { color: var(--ink-3); user-select: none; }
+.cmd pre .c { color: var(--ink-3); }
+.copy {
+  flex: none; font: 500 12px/1 var(--mono); padding: 8px 10px; border: 1px solid var(--rule-strong);
+  background: transparent; color: var(--ink-2); cursor: pointer;
+}
+.copy:hover { border-color: var(--ink); color: var(--ink); }
+.hero-cta { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Hero demo: a real report flowing through the graph */
+.demo { border: 1px solid var(--ink); background: var(--code-bg); color: var(--code-fg); font: 400 13px/1.7 var(--mono); }
+.demo-head { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid #2a2c2e; color: var(--code-dim); font-size: 12px; }
+.demo-body { padding: 16px 14px 18px; display: flex; flex-direction: column; gap: 4px; min-height: 420px; }
+.demo-line { display: flex; gap: 10px; opacity: .25; transition: opacity .35s ease; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.demo-line.on { opacity: 1; }
+.demo-line .t { color: var(--code-dim); flex: none; width: 3.2em; }
+.demo-line .ok { color: #9FD8A8; }
+.demo-line .hm { color: #FF7A55; }
+.demo-line .k { color: var(--code-dim); }
+.demo-out { margin-top: 14px; border-top: 1px dashed #2a2c2e; padding-top: 14px; white-space: pre; overflow-x: auto; color: var(--code-fg); }
+.demo-out .k { color: var(--code-dim); }
+.demo-out .hm { color: #FF7A55; }
+.demo-out .s { color: #C9CBC6; }
+.demo-foot { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; border-top: 1px solid #2a2c2e; font-size: 12px; color: var(--code-dim); }
+.demo-foot button { font: inherit; background: none; border: 0; color: var(--code-fg); cursor: pointer; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 1080px) {
+  .hero-copy { grid-column: 1 / -1; padding-right: 0; }
+  .hero-demo { grid-column: 1 / -1; }
+  .demo-body { min-height: 0; }
+}
+
+/* ---------- Generic section ---------- */
+.section { border-bottom: 1px solid var(--rule); }
+.section > .wrap { padding-block: clamp(56px, 8vw, 112px); display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); row-gap: 40px; }
+.sec-head { grid-column: 1 / span 4; padding-right: 32px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.sec-body { grid-column: 5 / -1; min-width: 0; }
+.sec-head h2 { font-size: clamp(26px, 2.6vw, 36px); line-height: 1.2; letter-spacing: -.025em; font-weight: 700; }
+.sec-head p { color: var(--ink-2); max-width: 30em; }
+@media (max-width: 960px) { .sec-head, .sec-body { grid-column: 1 / -1; padding-right: 0; } }
+
+/* Feature list (opencode-style plain list, spec-sheet styled) */
+.specs { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--ink); }
+.specs li {
+  display: grid; grid-template-columns: minmax(0, 13em) minmax(0, 1fr); gap: 8px 32px;
+  padding: 20px 0; border-bottom: 1px solid var(--rule);
+}
+.specs h3 { font-size: 16px; font-weight: 600; line-height: 1.5; }
+.specs p { color: var(--ink-2); max-width: 44em; }
+.specs code { font-size: .88em; background: var(--panel); padding: 1px 5px; }
+@media (max-width: 640px) { .specs li { grid-template-columns: 1fr; } }
+
+/* Pipeline */
+.pipe { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--ink); }
+.stage { padding: 22px 20px 24px; border-right: 1px solid var(--rule-strong); display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.stage:last-child { border-right: 0; }
+.stage .n { font: 600 12px/1 var(--mono); color: var(--ink-3); }
+.stage h3 { font-size: 18px; font-weight: 600; line-height: 1.35; }
+.stage p { color: var(--ink-2); font-size: 15px; }
+.stage .nodes { margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding-top: 12px; border-top: 1px dashed var(--rule-strong); }
+.stage .nodes code { font-size: 12px; color: var(--ink-2); overflow-wrap: anywhere; }
+.stage.human { background: var(--human-soft); }
+.stage.human .n, .stage.human h3 { color: var(--human); }
+@media (max-width: 960px) { .pipe { grid-template-columns: 1fr 1fr; } .stage:nth-child(2) { border-right: 0; } .stage:nth-child(-n+2) { border-bottom: 1px solid var(--rule-strong); } }
+@media (max-width: 560px) { .pipe { grid-template-columns: 1fr; } .stage { border-right: 0; border-bottom: 1px solid var(--rule-strong); } .stage:last-child { border-bottom: 0; } }
+.legend { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 16px; font: 400 13px/1.4 var(--mono); color: var(--ink-3); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.legend i { width: 12px; height: 12px; background: var(--ink); display: inline-block; }
+.legend i.h { background: var(--human); }
+
+/* Decision policy playground */
+.policy { border: 1px solid var(--ink); }
+.policy-scale { padding: 28px 24px 20px; border-bottom: 1px solid var(--rule-strong); }
+.scale { position: relative; height: 56px; }
+.zone { position: absolute; top: 0; height: 28px; display: flex; align-items: center; padding-left: 8px; font: 600 11px/1 var(--mono); letter-spacing: .06em; white-space: nowrap; overflow: hidden; }
+.zone.new { left: 0; width: 70%; background: var(--panel); color: var(--ink-3); border: 1px solid var(--rule-strong); }
+.zone.review { left: 70%; width: 25%; background: var(--human-soft); color: var(--human); border: 1px solid var(--human); }
+.zone.link { left: 95%; width: 5%; background: var(--ink); color: var(--paper); padding-left: 0; justify-content: center; }
+.tick { position: absolute; top: 32px; font: 400 11px/1 var(--mono); color: var(--ink-3); transform: translateX(-50%); font-variant-numeric: tabular-nums; }
+.tick:first-of-type { transform: none; }
+.tick.end { transform: translateX(-100%); }
+.marker { position: absolute; top: -6px; width: 2px; height: 40px; background: var(--ink); transform: translateX(-1px); transition: left .15s ease; }
+.marker::after { content: ""; position: absolute; top: -6px; left: -5px; border: 6px solid transparent; border-top-color: var(--ink); }
+.policy-controls { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+.controls { padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; border-right: 1px solid var(--rule-strong); min-width: 0; }
+.ctl-row { display: flex; flex-direction: column; gap: 8px; }
+.ctl-row label.top { display: flex; justify-content: space-between; font-size: 14px; color: var(--ink-2); }
+.ctl-row output { font: 600 14px/1 var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: var(--ink); }
+.checks { display: flex; flex-direction: column; gap: 10px; }
+.checks label { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: var(--ink-2); cursor: pointer; }
+.checks input { accent-color: var(--ink); margin-top: 4px; }
+.verdict { padding: 22px 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.verdict .act { font: 600 clamp(26px, 3vw, 34px)/1.1 var(--mono); letter-spacing: -.01em; }
+.verdict .act.human { color: var(--human); }
+.verdict .who { font: 500 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3); }
+.verdict ul { margin: 0; padding-left: 18px; color: var(--ink-2); font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 720px) { .policy-controls { grid-template-columns: 1fr; } .controls { border-right: 0; border-bottom: 1px solid var(--rule-strong); } .zone.review { font-size: 0; } }
+.note { margin-top: 14px; font-size: 13px; color: var(--ink-3); }
+.note code { font-size: 12px; }
+
+/* Evidence chain */
+.chain { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--ink); }
+.link-card { padding: 22px 20px; border-right: 1px solid var(--rule-strong); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.link-card:last-child { border-right: 0; }
+.link-card .id { font: 600 12px/1 var(--mono); color: var(--ink-3); }
+.link-card h3 { font-size: 17px; font-weight: 600; }
+.link-card p { font-size: 14px; color: var(--ink-2); }
+.link-card pre { margin: 6px 0 0; padding: 12px; background: var(--code-bg); color: var(--code-fg); font-size: 12px; line-height: 1.6; overflow-x: auto; }
+.link-card pre .k { color: var(--code-dim); }
+.link-card .ref { font: 400 12px/1.5 var(--mono); color: var(--ink-3); margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--rule-strong); }
+@media (max-width: 860px) { .chain { grid-template-columns: 1fr; } .link-card { border-right: 0; border-bottom: 1px solid var(--rule-strong); } .link-card:last-child { border-bottom: 0; } }
+
+/* Architecture */
+.arch { border: 1px solid var(--ink); overflow-x: auto; }
+.arch svg { display: block; width: 100%; min-width: 640px; height: auto; }
+.arch svg text { font-family: var(--mono); }
+.arch-notes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 24px; border-top: 1px solid var(--ink); }
+.arch-notes div { padding: 18px 20px 0 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.arch-notes h3 { font-size: 15px; font-weight: 600; }
+.arch-notes p { font-size: 14px; color: var(--ink-2); }
+@media (max-width: 760px) { .arch-notes { grid-template-columns: 1fr; } }
+
+/* Quickstart */
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; border-top: 1px solid var(--ink); }
+.steps li { display: grid; grid-template-columns: 3.5em minmax(0, 1fr); gap: 16px; padding: 22px 0; border-bottom: 1px solid var(--rule); counter-increment: s; }
+.steps li::before { content: counter(s, decimal-leading-zero); font: 600 13px/1.9 var(--mono); color: var(--ink-3); }
+.steps h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.steps p { color: var(--ink-2); font-size: 15px; margin-bottom: 12px; max-width: 46em; }
+.code { margin: 0; padding: 14px 16px; background: var(--code-bg); color: var(--code-fg); font-size: 13px; line-height: 1.75; overflow-x: auto; position: relative; }
+.code .c { color: var(--code-dim); }
+.req { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+.req span { font: 500 12px/1 var(--mono); padding: 8px 10px; border: 1px solid var(--rule-strong); color: var(--ink-2); }
+
+/* Status */
+.status-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.status-wrap { overflow-x: auto; border-top: 1px solid var(--ink); }
+.status-table th, .status-table td { text-align: left; padding: 14px 16px 14px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.status-table th { font: 500 12px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.status-table td:first-child { font-weight: 600; white-space: nowrap; }
+.status-table td:last-child { color: var(--ink-2); }
+.chip { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: .06em; padding: 5px 7px; white-space: nowrap; }
+.chip.done { background: var(--ink); color: var(--paper); }
+.chip.mock { border: 1px solid var(--rule-strong); color: var(--ink-2); }
+.chip.todo { border: 1px solid var(--human); color: var(--human); }
+
+.status-table td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.status-table .dim { color: var(--ink-3); font-weight: 400; }
+.status-table.bench td:last-child { color: var(--ink); }
+.bench-cmd { margin-top: 24px; }
+.note code { background: var(--panel); padding: 1px 4px; }
+.sec-head p code, .steps p code, .arch-notes code { font-size: .88em; background: var(--panel); padding: 1px 5px; }
+
+/* FAQ */
+.faq { border-top: 1px solid var(--ink); }
+.faq details { border-bottom: 1px solid var(--rule); }
+.faq summary { list-style: none; cursor: pointer; padding: 20px 40px 20px 0; position: relative; font-weight: 600; font-size: 16px; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; position: absolute; right: 4px; top: 16px; font: 400 22px/1.4 var(--mono); color: var(--ink-3); }
+.faq details[open] summary::after { content: "−"; }
+.faq details p { padding: 0 40px 22px 0; color: var(--ink-2); max-width: 46em; }
+.faq code { font-size: .88em; background: var(--panel); padding: 1px 5px; }
+
+/* CTA + footer */
+.cta .wrap { padding-block: clamp(56px, 8vw, 104px); display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 32px; }
+.cta h2 { font-size: clamp(30px, 4vw, 54px); line-height: 1.12; letter-spacing: -.03em; font-weight: 700; max-width: 14em; }
+.cta h2 span { color: var(--human); }
+footer { border-top: 1px solid var(--ink); }
+footer .wrap { padding-block: 40px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); row-gap: 28px; font-size: 14px; }
+.foot-brand { grid-column: 1 / span 4; display: flex; flex-direction: column; gap: 12px; color: var(--ink-3); }
+.foot-cols { grid-column: 6 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.foot-cols div { display: flex; flex-direction: column; gap: 8px; }
+.foot-cols a { color: var(--ink-2); text-decoration: none; }
+.foot-cols a:hover { color: var(--ink); text-decoration: underline; }
+.foot-base a { color: inherit; }
+.foot-base { grid-column: 1 / -1; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 20px; border-top: 1px solid var(--rule); color: var(--ink-3); font: 400 12px/1.5 var(--mono); }
+.theme-toggle { font: inherit; background: none; border: 1px solid var(--rule-strong); color: var(--ink-2); padding: 6px 10px; cursor: pointer; }
+@media (max-width: 760px) { .foot-brand, .foot-cols { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="주요 메뉴">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Clio 홈">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      Clio
+    </a>
+    <div class="nav-links">
+      <a class="hide-sm" href="#how">작동 방식</a>
+      <a class="hide-sm" href="#policy">판단 정책</a>
+      <a class="hide-sm" href="#benchmark">평가</a>
+      <a class="hide-sm" href="#arch">아키텍처</a>
+      <a class="hide-sm" href="#quickstart">시작하기</a>
+      <a class="hide-sm" href="#faq">FAQ</a>
+      <a class="btn ghost" href="https://github.com/team-clio">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</nav>
+
+<main id="top">
+
+<!-- ================= HERO ================= -->
+<header class="hero grid-bg">
+  <div class="wrap">
+    <div class="hero-copy">
+      <a class="status-pill" href="#status"><b>MVP</b> Apache-2.0 · 운영 검증 전 · 기능 현황 보기 →</a>
+      <h1>버그 리포트가 쌓이면,<br>Clio가 <em>묶고</em> 원인을 찾습니다.</h1>
+      <p class="lede">
+        Clio는 버그 리포트를 수집하고, 같은 원인의 오류를 이슈로 묶어,
+        프로젝트 문서와 소스코드에 근거한 분석을 제공하는 오픈소스 서비스입니다.
+        반복적인 분류와 조사는 Clio가 맡고, 근거가 부족하거나 충돌하면 사람에게 넘깁니다.
+      </p>
+
+      <div class="install">
+        <div class="tabs" role="tablist" aria-label="설치 방법">
+          <button class="tab" role="tab" id="tab-docker" aria-selected="true" aria-controls="cmd" data-cmd="docker">docker compose</button>
+          <button class="tab" role="tab" id="tab-update" aria-selected="false" aria-controls="cmd" data-cmd="update">업데이트</button>
+        </div>
+        <div class="cmd" id="cmd" role="tabpanel">
+          <pre id="cmd-text"><span class="p">$ </span>curl -fsSL https://raw.githubusercontent.com/team-clio/clio-platform/main/compose.release.yaml -o compose.yaml
+<span class="p">$ </span>echo "OPENAI_API_KEY=sk-..." &gt; .env
+<span class="p">$ </span>docker compose up -d</pre>
+          <button class="copy" id="copy-btn" type="button">복사</button>
+        </div>
+      </div>
+
+      <div class="hero-cta">
+        <a class="btn" href="#quickstart">로컬에서 띄우기</a>
+        <a class="btn ghost" href="#how">작동 방식 보기</a>
+      </div>
+    </div>
+
+    <aside class="hero-demo" aria-label="버그 리포트 처리 예시">
+      <div class="demo">
+        <div class="demo-head"><span>process_report · bug_id 72</span><span>REQ-001</span></div>
+        <div class="demo-body" id="demo">
+          <div class="demo-line"><span class="t">00.00</span><span>validate_request <span class="k">request_type=process_report</span></span></div>
+          <div class="demo-line"><span class="t">00.12</span><span>load_and_normalize_report <span class="ok">✓</span></span></div>
+          <div class="demo-line"><span class="t">00.12</span><span class="k">&nbsp;&nbsp;observed: 결제 버튼 클릭 시 500 오류</span></div>
+          <div class="demo-line"><span class="t">00.12</span><span class="k">&nbsp;&nbsp;missing: EXPECTED_BEHAVIOR</span></div>
+          <div class="demo-line"><span class="t">01.84</span><span>search_issue_candidates <span class="k">signal+trigram+vector</span></span></div>
+          <div class="demo-line"><span class="t">01.84</span><span class="k">&nbsp;&nbsp;#19 결제 완료 후 주문 미노출 · #27 PG 타임아웃</span></div>
+          <div class="demo-line"><span class="t">03.41</span><span>match_report <span class="k">2 candidates compared</span></span></div>
+          <div class="demo-line"><span class="t">03.42</span><span>apply_match_decision <span class="hm">→ needs_review</span></span></div>
+          <div class="demo-out" id="demo-out"><span class="k">{</span>
+  <span class="k">"action":</span> <span class="hm">"REVIEW"</span>,
+  <span class="k">"matched_issue_id":</span> 19,
+  <span class="k">"confidence":</span> 0.82,
+  <span class="k">"supporting_reasons":</span> [
+    <span class="s">"오류 유형과 발생 기능이 일치합니다."</span>
+  ],
+  <span class="k">"review_reasons":</span> [
+    <span class="s">"정확히 일치하는 오류 코드가 없습니다."</span>
+  ]
+<span class="k">}</span></div>
+        </div>
+        <div class="demo-foot"><span>0.82 ∈ [0.70, 0.95) → 사람 검토</span><button type="button" id="replay">다시 재생</button></div>
+      </div>
+    </aside>
+  </div>
+</header>
+
+<!-- ================= FEATURES ================= -->
+<section class="section" id="features" aria-labelledby="features-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">무엇을 하나요</span>
+      <h2 id="features-h">버그 수집부터 원인 분석까지, 한 흐름으로</h2>
+      <p>여러 경로로 들어오는 오류는 같은 문제라도 표현이 다르고, 비슷한 메시지라도 원인이 다를 수 있습니다. Clio는 수집부터 분석까지 연결하고, 각 판단의 근거와 불확실성을 남깁니다.</p>
+    </div>
+    <div class="sec-body">
+      <ul class="specs">
+        <li><h3>리포트 정규화</h3><p>오류 제목, 메시지, stack trace, 발생 시각 같은 원문을 보존하고 증상, 환경, 재현 정보, 오류 신호로 구조화합니다. 원문에 없는 내용은 채우지 않고 <code>missing_fields</code>로 표시합니다. 같은 오류가 다시 나도 새 Bug로 남깁니다.</p></li>
+        <li><h3>중복 이슈 연결</h3><p>정확한 오류 신호, trigram 문자열 유사도, 벡터 의미 검색을 함께 써서 비슷한 Bug를 찾고, 연결된 Issue별로 묶어 후보를 만듭니다. 검색 유사도와 최종 연결 판단은 분리되어 있습니다.</p></li>
+        <li><h3>코드 근거 원인 분석</h3><p>분석 시작 시 문서 revision과 저장소 commit을 고정하고 코드·문서·과거 이력을 병렬로 탐색합니다. 인용이 스냅샷과 일치하는지 확인하고, 결과는 완료 / 근거 부족 / 검토 필요로 나눠 저장합니다.</p></li>
+        <li><h3>사람이 끼어드는 지점이 분명함</h3><p>확신도가 애매하거나 후보끼리 경합하면 자동 연결하지 않고 검토 대기로 보냅니다. 기준값은 환경변수로 바꿀 수 있습니다.</p></li>
+        <li><h3>프로젝트 문서 기억 (PCM)</h3><p>Markdown과 텍스트 PDF를 올리면 heading 단위 지식으로 정리해 출처, 개정 이력과 함께 보관합니다. 관리 화면에서 분석에 쓰인 지식과 스냅샷을 그대로 볼 수 있습니다.</p></li>
+        <li><h3>완전한 셀프호스팅</h3><p>임베딩은 로컬 Ollama의 <code>qwen3-embedding:0.6b</code>로 만듭니다. 코드 저장소는 서버 안의 bare mirror로만 다루고, 에이전트에는 원격 주소나 토큰을 넘기지 않습니다.</p></li>
+        <li><h3>원하는 LLM 사용</h3><p>모든 에이전트가 <code>CLIO_MODEL=provider:model</code> 하나를 공유하고, 인증 정보는 각 provider의 표준 환경변수를 씁니다.</p></li>
+        <li><h3>재분석해도 이력이 남음</h3><p>분석 결과는 실행마다 스냅샷으로 저장됩니다. 재분석이 이전 결과를 덮어쓰지 않아 판단이 어떻게 바뀌었는지 비교할 수 있습니다.</p></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= USERS ================= -->
+<section class="section grid-bg" id="users" aria-labelledby="users-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">누구를 위한가</span>
+      <h2 id="users-h">조사는 줄이고, 고칠 문제에 집중하도록</h2>
+    </div>
+    <div class="sec-body">
+      <ul class="specs">
+        <li><h3>개발자</h3><p>관련 코드와 문서 근거가 붙은 이슈를 받아 원인 조사와 수정에 바로 들어갑니다.</p></li>
+        <li><h3>유지보수 담당자</h3><p>기존 이슈 연결과 신규 생성 판단을 확인하고, 검토가 필요한 결과만 골라 봅니다.</p></li>
+        <li><h3>프로젝트 관리자</h3><p>이슈 상태, P0~P4 우선순위, 발생 현황을 한 화면에서 봅니다.</p></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= HOW ================= -->
+<section class="section" id="how" aria-labelledby="how-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">작동 방식</span>
+      <h2 id="how-h">리포트 하나가 거치는 네 단계</h2>
+      <p>각 단계는 LangGraph 노드로 구현되어 있습니다. 노드 이름 그대로 로그와 트레이스에서 확인할 수 있습니다.</p>
+    </div>
+    <div class="sec-body">
+      <div class="pipe">
+        <div class="stage">
+          <span class="n">1 · NORMALIZE</span>
+          <h3>정규화</h3>
+          <p>민감한 키를 가리고 32 KiB 이내로 잘라 모델에 넘깁니다. 결과는 원문에 근거한 표준 사실입니다.</p>
+          <div class="nodes"><code>load_and_normalize_report</code></div>
+        </div>
+        <div class="stage">
+          <span class="n">2 · MATCH</span>
+          <h3>후보 비교</h3>
+          <p>기존 이슈 후보를 찾아 오류 유형, 오류 코드, 스택 프레임이 겹치는지 비교합니다.</p>
+          <div class="nodes"><code>search_issue_candidates</code><code>match_report</code></div>
+        </div>
+        <div class="stage human">
+          <span class="n">3 · DECIDE</span>
+          <h3>연결 · 검토 · 신규</h3>
+          <p>확실하면 기존 이슈에 연결하고, 애매하면 사람에게 넘기고, 처음 보는 문제면 새 이슈를 만듭니다.</p>
+          <div class="nodes"><code>apply_match_decision</code><code>→ needs_review</code></div>
+        </div>
+        <div class="stage">
+          <span class="n">4 · ANALYZE</span>
+          <h3>원인 분석</h3>
+          <p>문서·코드·이력을 병렬로 찾고, 해결 계획을 세운 뒤 품질 게이트를 통과해야 저장됩니다.</p>
+          <div class="nodes"><code>search_documents · search_code · search_history</code><code>plan_resolution</code><code>quality_gate</code></div>
+        </div>
+      </div>
+      <div class="legend"><span><i></i>자동으로 처리</span><span><i class="h"></i>사람이 확인하는 지점</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= POLICY ================= -->
+<section class="section grid-bg" id="policy" aria-labelledby="policy-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">판단 정책</span>
+      <h2 id="policy-h">언제 자동으로 연결하고, 언제 묻나요</h2>
+      <p>Report Matcher의 분기 규칙을 그대로 옮겼습니다. 값을 움직여 Clio가 어떤 결정을 내리는지 확인해 보세요.</p>
+    </div>
+    <div class="sec-body">
+      <div class="policy">
+        <div class="policy-scale">
+          <div class="scale" aria-hidden="true">
+            <div class="zone new">CREATE_NEW</div>
+            <div class="zone review">REVIEW</div>
+            <div class="zone link">AL</div>
+            <span class="tick" style="left:0">0.00</span>
+            <span class="tick" style="left:70%">0.70</span>
+            <span class="tick" style="left:95%">0.95</span>
+            <span class="tick end" style="left:100%">1.00</span>
+            <div class="marker" id="marker" style="left:82%"></div>
+          </div>
+        </div>
+        <div class="policy-controls">
+          <div class="controls">
+            <div class="ctl-row">
+              <label class="top" for="conf">1위 후보 confidence <output id="conf-out" for="conf">0.82</output></label>
+              <input type="range" id="conf" min="0" max="1" step="0.01" value="0.82">
+            </div>
+            <div class="ctl-row">
+              <label class="top" for="margin">1위와 2위의 차이 <output id="margin-out" for="margin">0.15</output></label>
+              <input type="range" id="margin" min="0" max="0.5" step="0.01" value="0.15">
+            </div>
+            <div class="checks">
+              <label for="has-cand"><input type="checkbox" id="has-cand" checked> 검색된 후보가 있음</label>
+              <label for="strong"><input type="checkbox" id="strong"> 강한 오류 신호 (같은 error_type + 같은 error_code 또는 stack_frame)</label>
+              <label for="contra"><input type="checkbox" id="contra"> 후보와 모순되는 사실이 있음</label>
+            </div>
+          </div>
+          <div class="verdict" aria-live="polite">
+            <span class="who" id="who">사람 검토</span>
+            <span class="act human" id="act">REVIEW</span>
+            <ul id="why"><li>0.70 이상이지만 자동 연결 조건을 만족하지 않습니다.</li></ul>
+          </div>
+        </div>
+      </div>
+      <p class="note">기본값은 <code>CLIO_RM_AUTO_LINK_THRESHOLD=0.95</code>, <code>CLIO_RM_REVIEW_THRESHOLD=0.70</code>, <code>CLIO_RM_CANDIDATE_MARGIN=0.10</code>입니다. 자동 연결의 운영 임계값은 아직 평가 데이터로 보정 중이므로 팀에 맞게 조정하세요.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= EVIDENCE ================= -->
+<section class="section" id="evidence" aria-labelledby="evidence-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">분석 결과의 구조</span>
+      <h2 id="evidence-h">확인한 사실과 추측을 섞지 않습니다</h2>
+      <p>Issue Analyzer의 결과는 세 층으로 나뉩니다. 위 층은 반드시 아래 층의 ID를 참조하므로, 어떤 가설이 어떤 코드에서 나왔는지 끝까지 따라갈 수 있습니다.</p>
+    </div>
+    <div class="sec-body">
+      <div class="chain">
+        <div class="link-card">
+          <span class="id">EVIDENCE · E1 · 예시</span>
+          <h3>실제로 본 코드</h3>
+          <p>분석에 사용한 커밋의 코드 스냅샷을 1~10줄로 그대로 보존합니다. 경로나 라인 번호는 설명용 메타데이터일 뿐입니다.</p>
+<pre><span class="k">// PaymentService.java @ 0123abc</span>
+if (res.status() == TIMEOUT) {
+  order.markPending();
+  return;  <span class="k">// 이벤트 미발행</span>
+}</pre>
+          <span class="ref">source: snapshot</span>
+        </div>
+        <div class="link-card">
+          <span class="id">FINDING · F1</span>
+          <h3>근거에서 얻은 해석</h3>
+          <p>PG 응답이 타임아웃이면 주문은 PENDING으로 남고 완료 이벤트가 발행되지 않습니다.</p>
+          <span class="ref">refs: E1</span>
+        </div>
+        <div class="link-card">
+          <span class="id">HYPOTHESIS · H1</span>
+          <h3>가능한 원인</h3>
+          <p>결제는 PG 쪽에서 승인됐지만 타임아웃으로 처리돼, 주문 목록 조회 조건에서 빠졌을 가능성이 있습니다.</p>
+          <span class="ref">refs: F1</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= BENCHMARK ================= -->
+<section class="section grid-bg" id="benchmark" aria-labelledby="bench-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">평가</span>
+      <h2 id="bench-h">변경할 때마다 같은 조건으로 잽니다</h2>
+      <p><code>clio-benchmark</code>는 합성 결함이 있는 테스트 저장소에 리포트를 넣고, 분석 결과와 인용 무결성, 처리 시간을 기록하는 CLI입니다. 아래는 지금까지의 비교 실험 한 번의 결과입니다.</p>
+    </div>
+    <div class="sec-body">
+      <div class="status-wrap">
+        <table class="status-table bench">
+          <thead><tr><th scope="col">구성</th><th scope="col">평균 점수</th><th scope="col">70점 이상</th><th scope="col">평균 분석 시간</th></tr></thead>
+          <tbody>
+            <tr><td>full-clio</td><td class="num">92.68 / 100</td><td class="num">28 / 30</td><td class="num">32.8초</td></tr>
+            <tr><td>one-shot <span class="dim">(코드 검색만)</span></td><td class="num">80.56 / 100</td><td class="num">24 / 30</td><td class="num">27.5초</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note">합성 결함 10개 × 보고 문구 3종 = 30건, 저장소 하나에서 한 번 실행한 자동 채점 결과입니다. 문서·이력 검색과 quality gate가 함께 달라진 비교라 요소별 효과는 분리되지 않으며, 실제 수정 성공률이나 다른 코드베이스의 품질을 보장하지 않습니다. 시간에는 저장소 동기화가 빠져 있고 토큰 비용은 수집하지 않았습니다.</p>
+      <pre class="code bench-cmd">cd clio-benchmark
+uv sync --extra dev
+cp benchmark.example.yaml benchmark.local.yaml
+uv run clio-benchmark setup
+uv run clio-benchmark run      <span class="c"># 서버와 에이전트를 먼저 띄운 뒤</span>
+uv run clio-benchmark report --format html</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ARCH ================= -->
+<section class="section" id="arch" aria-labelledby="arch-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">아키텍처</span>
+      <h2 id="arch-h">API 서버와 에이전트 그래프, 하나의 데이터베이스</h2>
+      <p>사용자와 외부 서비스는 Java API 서버만 봅니다. Python 에이전트 그래프는 비동기로 요청을 받아 처리하고, 업무 데이터는 서버의 internal API로만 바꿉니다.</p>
+    </div>
+    <div class="sec-body">
+      <div class="arch">
+        <svg viewBox="0 0 900 360" role="img" aria-labelledby="arch-t">
+          <title id="arch-t">외부 서비스와 관리자 UI가 API 서버로 요청을 보내고, API 서버는 에이전트 그래프에 비동기로 전달하며, 둘 다 PostgreSQL을 사용하고 에이전트는 Ollama로 임베딩을 만든다.</title>
+          <defs>
+            <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ink)"/></marker>
+          </defs>
+          <rect x="0" y="0" width="900" height="360" fill="var(--paper)"/>
+          <!-- clients -->
+          <g>
+            <rect x="30" y="90" width="170" height="64" fill="var(--paper)" stroke="var(--ink-3)" stroke-dasharray="4 3"/>
+            <text x="46" y="118" font-size="13" font-weight="600" fill="var(--ink)">외부 서비스</text>
+            <text x="46" y="138" font-size="11" fill="var(--ink-3)">QA · 에러 수집기 · CS</text>
+            <rect x="30" y="206" width="170" height="64" fill="var(--human-soft)" stroke="var(--human)"/>
+            <text x="46" y="234" font-size="13" font-weight="600" fill="var(--human)">clio-admin</text>
+            <text x="46" y="254" font-size="11" fill="var(--human)">React · 검토 · 설정</text>
+          </g>
+          <!-- server -->
+          <rect x="300" y="110" width="210" height="140" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/>
+          <text x="318" y="140" font-size="11" fill="var(--ink-3)">JAVA 21 · SPRING · :8080</text>
+          <text x="318" y="166" font-size="16" font-weight="600" fill="var(--ink)">clio-server</text>
+          <text x="318" y="196" font-size="11" fill="var(--ink-2)">버그 수집 · 이슈 · 권한</text>
+          <text x="318" y="216" font-size="11" fill="var(--ink-2)">internal-api</text>
+          <!-- agent -->
+          <rect x="620" y="40" width="250" height="150" fill="var(--code-bg)" stroke="var(--ink)" stroke-width="1.5"/>
+          <text x="638" y="70" font-size="11" fill="var(--code-dim)">PYTHON 3.11 · LANGGRAPH · :2024</text>
+          <text x="638" y="96" font-size="16" font-weight="600" fill="var(--code-fg)">clio-agent-graph</text>
+          <text x="638" y="126" font-size="11" fill="var(--code-fg)">Normalizer · Matcher</text>
+          <text x="638" y="146" font-size="11" fill="var(--code-fg)">Issue Analyzer · RAG</text>
+          <text x="638" y="166" font-size="11" fill="var(--code-fg)">PCM Inspect :2025 · Git mirror</text>
+          <!-- db -->
+          <rect x="300" y="290" width="350" height="50" fill="var(--panel)" stroke="var(--ink)"/>
+          <text x="318" y="320" font-size="13" font-weight="600" fill="var(--ink)">PostgreSQL + pgvector</text>
+          <text x="500" y="320" font-size="11" fill="var(--ink-3)">clio · clio_pcm · :5432</text>
+          <!-- ollama -->
+          <rect x="700" y="250" width="170" height="64" fill="var(--panel)" stroke="var(--ink)"/>
+          <text x="716" y="278" font-size="13" font-weight="600" fill="var(--ink)">Ollama</text>
+          <text x="716" y="298" font-size="11" fill="var(--ink-3)">임베딩 · :11434</text>
+          <!-- arrows -->
+          <g stroke="var(--ink)" stroke-width="1.2" fill="none" marker-end="url(#ah)">
+            <path d="M200 122 H250 V160 H298"/>
+            <path d="M200 238 H250 V200 H298"/>
+            <path d="M510 140 H560 V100 H618"/>
+            <path d="M618 150 H580 V200 H512"/>
+            <path d="M405 250 V288"/>
+            <path d="M700 190 V288 H652" />
+            <path d="M785 190 V248"/>
+          </g>
+          <text x="530" y="90" font-size="10" fill="var(--ink-3)">async 요청</text>
+          <text x="522" y="218" font-size="10" fill="var(--ink-3)">internal-api</text>
+        </svg>
+      </div>
+      <div class="arch-notes">
+        <div><h3>데이터 소유권이 나뉨</h3><p>Bug·Issue·실행 상태·분석 결과는 서버가, 정규화 리포트·검색 색인·PCM·Git mirror는 에이전트 그래프가 소유합니다. 에이전트는 업무 테이블을 직접 고치지 않고 좁은 internal API로 요청합니다.</p></div>
+        <div><h3>코드는 커밋 단위로 읽음</h3><p>검색·목록·읽기 모두 고정된 커밋을 씁니다. 경로 탈출은 막고 secret 파일은 읽지 않으며 값은 가립니다.</p></div>
+        <div><h3>중복 실행에 안전함</h3><p>워크플로는 PENDING → RUNNING → COMPLETED / FAILED로 추적하고 <code>request_id</code>와 요청 hash로 중복 적용을 막습니다. 검토 필요는 실패가 아니라 정상 결과입니다.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= QUICKSTART ================= -->
+<section class="section grid-bg" id="quickstart" aria-labelledby="qs-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">시작하기</span>
+      <h2 id="qs-h">명령 세 줄로 띄우기</h2>
+      <p>서버, 에이전트, 관리 화면, PostgreSQL, 임베딩 서버가 컨테이너 다섯 개로 함께 올라옵니다. 처음 실행할 때 임베딩 모델 약 639MB를 내려받아 몇 분 걸립니다.</p>
+    </div>
+    <div class="sec-body">
+      <div class="req" aria-label="필요한 환경">
+        <span>Docker</span><span>OpenAI API 키</span>
+      </div>
+      <ol class="steps">
+        <li>
+          <div>
+            <h3>실행하기</h3>
+            <p>구성 파일 하나를 받고 API 키를 넣은 뒤 실행합니다.</p>
+            <pre class="code">curl -fsSL https://raw.githubusercontent.com/team-clio/clio-platform/main/compose.release.yaml -o compose.yaml
+echo "OPENAI_API_KEY=sk-..." &gt; .env
+docker compose up -d</pre>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>프로젝트 연결하기</h3>
+            <p><code>http://localhost:3000</code>에서 프로젝트를 만들고 Git 저장소(HTTPS)를 연결합니다. 저장소 동기화가 끝나면 버그 처리가 시작됩니다. 기획·설계 문서(Markdown, 텍스트 PDF)를 올리면 분석에 함께 쓰입니다.</p>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h3>버그 보내기</h3>
+            <p>에러 수집기나 QA 도구에서 아래 API로 버그를 보냅니다.</p>
+            <pre class="code">curl -X POST http://localhost:3000/external-api/v1/projects/1/bugs \
+  -H 'content-type: application/json' \
+  -d '{"source": "API", "title": "결제 실패",
+       "error_type": "PaymentException",
+       "stack_trace": ["PaymentService.approve"],
+       "occurred_at": "2026-10-04T05:00:00Z"}'</pre>
+          </div>
+        </li>
+      </ol>
+      <p class="note">모델을 바꾸려면 <code>.env</code>에 <code>CLIO_MODEL=provider:model</code>을, OpenAI 호환 서버를 쓰려면 <code>CLIO_MODEL_BASE_URL</code>을 넣습니다. 소스에서 직접 실행하는 방법은 각 저장소의 README에 있습니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= STATUS ================= -->
+<section class="section" id="status" aria-labelledby="status-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">현재 상태</span>
+      <h2 id="status-h">지금 쓸 수 있는 기능</h2>
+      <p>핵심 흐름은 구현되어 있지만 운영 환경에서의 품질 검증은 아직 진행 중입니다.</p>
+    </div>
+    <div class="sec-body">
+      <div class="status-wrap">
+        <table class="status-table">
+          <thead><tr><th scope="col">영역</th><th scope="col">내용</th></tr></thead>
+          <tbody>
+            <tr><td>리포트 처리</td><td>정규화, 하이브리드 후보 검색, 매칭, 연결 / 검토 / 신규 분기</td></tr>
+            <tr><td>이슈 분석 · 재분석</td><td>병렬 탐색, Evidence·Finding·Hypothesis, quality gate, 실행별 스냅샷</td></tr>
+            <tr><td>프로젝트 · 이슈 관리</td><td>관리 API와 화면, 이슈 통계, 상태·담당자·P0~P4 우선순위</td></tr>
+            <tr><td>문서 · PCM</td><td>Markdown·텍스트 PDF 업로드, 중복 거절, 동기화 상태, PCM 조회. 스캔 PDF OCR은 범위 밖</td></tr>
+            <tr><td>저장소 연동</td><td>HTTPS 저장소 등록·수정·삭제, commit 단위 스냅샷</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section class="section grid-bg" id="faq" aria-labelledby="faq-h">
+  <div class="wrap">
+    <div class="sec-head">
+      <span class="label">FAQ</span>
+      <h2 id="faq-h">자주 묻는 질문</h2>
+    </div>
+    <div class="sec-body">
+      <div class="faq">
+        <details><summary>Clio는 무엇인가요?</summary><p>버그 리포트를 수집하고, 같은 원인의 오류를 이슈로 묶어, 프로젝트 문서와 소스코드에 근거한 분석을 제공하는 서비스입니다. Java API 서버, Python LangGraph 에이전트 그래프, React 관리 화면으로 이루어져 있습니다.</p></details>
+        <details><summary>Bug와 Issue는 어떻게 다른가요?</summary><p>Bug는 수집된 오류 한 건이고, 같은 오류가 다시 나도 새 Bug로 남깁니다. Issue는 같은 원인으로 판단한 여러 Bug를 묶은 작업 단위입니다. Bug 하나는 최대 하나의 Issue에만 연결됩니다.</p></details>
+        <details><summary>Clio가 코드를 직접 고치거나 PR을 만드나요?</summary><p>아니요. Clio는 원인과 해결 방향을 근거와 함께 정리하는 데까지 합니다. LLM에는 읽기 도구만 주고, 업무 데이터 변경도 서버가 검증한 뒤 수행합니다.</p></details>
+        <details><summary>라이선스는 무엇인가요?</summary><p>Apache License 2.0입니다. 상업적 용도를 포함해 자유롭게 사용, 수정, 배포할 수 있습니다. 배포할 때는 라이선스 사본과 저작권 고지를 함께 포함하고, 수정한 파일에는 변경 사실을 표시해야 합니다.</p></details>
+        <details><summary>제 코드가 외부로 나가나요?</summary><p>저장소는 서버 안의 bare Git mirror로 관리되고, 임베딩은 로컬 Ollama에서 만듭니다. 외부로 나가는 것은 설정한 LLM Provider로 보내는 프롬프트뿐입니다. 그 안에 들어가는 코드는 분석에 필요한 짧은 구간이며, secret 파일은 읽지 않고 값은 가립니다. 로컬 LLM을 쓰면 전부 내부에서 처리됩니다.</p></details>
+        <details><summary>어떤 LLM을 쓸 수 있나요?</summary><p><code>CLIO_MODEL=provider:model</code> 형식으로 지정한 모델을 모든 에이전트가 함께 씁니다. 인증은 각 provider의 표준 환경변수를 사용합니다. 관리 화면에서 모델을 바꾸는 기능은 아직 준비 중입니다.</p></details>
+        <details><summary>잘못 연결하면 어떻게 하나요?</summary><p>자동 연결은 confidence 0.95 이상이고, 강한 오류 신호가 있으며, 모순과 후보 경합이 없을 때만 일어납니다. 그 밖의 애매한 경우는 검토 대기로 가서 사람이 결정합니다. 기준값은 환경변수로 더 보수적으로 바꿀 수 있습니다.</p></details>
+        <details><summary>GPU가 필요한가요?</summary><p>아니요. 기본 임베딩 모델은 0.6B로 CPU에서 돌아갑니다. macOS의 Docker는 Metal 가속을 쓰지 못해 네이티브 Ollama보다 느릴 수 있습니다.</p></details>
+        <details><summary>어떻게 기여하나요?</summary><p>GitHub에서 이슈를 열거나 TODO로 표시된 영역부터 시작해 보세요. 서버는 <code>./gradlew test</code>, 에이전트는 <code>uv run pytest</code>와 <code>uv run ruff check .</code>, 관리 화면은 <code>npm run typecheck</code>와 <code>npm run lint</code>로 확인합니다. 분석 품질에 영향을 주는 변경은 <code>clio-benchmark</code>로 전후를 비교해 주세요.</p></details>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CTA ================= -->
+<section class="cta" aria-labelledby="cta-h">
+  <div class="wrap">
+    <h2 id="cta-h">버그는 자동으로 묶고,<br><span>판단은 사람이.</span></h2>
+    <div class="hero-cta">
+      <a class="btn" href="https://github.com/team-clio">GitHub에서 보기</a>
+      <a class="btn ghost" href="#quickstart">시작하기</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-brand">
+      <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>Clio</a>
+      <p>버그를 수집해 이슈로 묶고, 문서와 코드에 근거해 분석하는 오픈소스 서비스.</p>
+    </div>
+    <div class="foot-cols">
+      <div><span class="label">프로젝트</span><a href="https://github.com/team-clio">GitHub</a><a href="#status">기능 현황</a><a href="#quickstart">시작하기</a></div>
+      <div><span class="label">구성 요소</span><a href="https://github.com/team-clio/clio-platform">clio-platform</a><a href="https://github.com/team-clio/clio-server">clio-server</a><a href="https://github.com/team-clio/clio-agent-graph">clio-agent-graph</a><a href="https://github.com/team-clio/clio-admin">clio-admin</a></div>
+      <div><span class="label">커뮤니티</span><a href="https://github.com/team-clio/clio-server/issues">Issues</a><a href="https://github.com/team-clio/clio-benchmark">clio-benchmark</a></div>
+    </div>
+    <div class="foot-base">
+      <span>© 2026 Clio contributors · <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a></span>
+      <button class="theme-toggle" type="button" id="theme">테마: 시스템</button>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // Install tabs
+  var CMDS = {
+    docker: ['curl -fsSL https://raw.githubusercontent.com/team-clio/clio-platform/main/compose.release.yaml -o compose.yaml', 'echo "OPENAI_API_KEY=sk-..." > .env', 'docker compose up -d'],
+    update: ['docker compose pull', 'docker compose up -d']
+  };
+  var current = 'docker';
+  var pre = document.getElementById('cmd-text');
+  function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  document.querySelectorAll('.tab').forEach(function (t) {
+    t.addEventListener('click', function () {
+      document.querySelectorAll('.tab').forEach(function (x) { x.setAttribute('aria-selected', 'false'); });
+      t.setAttribute('aria-selected', 'true');
+      current = t.dataset.cmd;
+      pre.innerHTML = CMDS[current].map(function (l) { return '<span class="p">$ </span>' + esc(l); }).join('\n');
+    });
+  });
+  var copyBtn = document.getElementById('copy-btn');
+  copyBtn.addEventListener('click', function () {
+    var text = CMDS[current].join('\n');
+    function done(msg) { copyBtn.textContent = msg; setTimeout(function () { copyBtn.textContent = '복사'; }, 1400); }
+    function fallback() {
+      var r = document.createRange(); r.selectNodeContents(pre);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); done('선택됨');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done('복사됨'); }, fallback);
+    } else { fallback(); }
+  });
+
+  // Hero demo playback
+  var lines = Array.prototype.slice.call(document.querySelectorAll('#demo .demo-line'));
+  var out = document.getElementById('demo-out');
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var timers = [];
+  function showAll() { lines.forEach(function (l) { l.classList.add('on'); }); out.style.opacity = 1; }
+  function play() {
+    timers.forEach(clearTimeout); timers = [];
+    if (reduce) { showAll(); return; }
+    lines.forEach(function (l) { l.classList.remove('on'); });
+    out.style.opacity = .25;
+    lines.forEach(function (l, i) { timers.push(setTimeout(function () { l.classList.add('on'); }, 250 + i * 420)); });
+    timers.push(setTimeout(function () { out.style.transition = 'opacity .4s'; out.style.opacity = 1; }, 250 + lines.length * 420));
+  }
+  showAll();
+  setTimeout(play, 600);
+  document.getElementById('replay').addEventListener('click', play);
+
+  // Decision policy (mirrors Report Matcher branching)
+  var AUTO = 0.95, REVIEW = 0.70, MARGIN = 0.10;
+  var conf = document.getElementById('conf'), margin = document.getElementById('margin');
+  var hasCand = document.getElementById('has-cand'), strong = document.getElementById('strong'), contra = document.getElementById('contra');
+  function decide() {
+    var c = parseFloat(conf.value), m = parseFloat(margin.value);
+    document.getElementById('conf-out').textContent = c.toFixed(2);
+    document.getElementById('margin-out').textContent = m.toFixed(2);
+    document.getElementById('marker').style.left = (c * 100) + '%';
+    conf.disabled = margin.disabled = strong.disabled = contra.disabled = !hasCand.checked;
+    var act, who, why = [];
+    if (!hasCand.checked) {
+      act = 'CREATE_NEW'; who = '자동 · 새 이슈 생성 후 분석';
+      why.push('검색 결과가 0건이면 비교 모델을 호출하지 않습니다.');
+    } else if (c >= AUTO && strong.checked && !contra.checked && m > MARGIN) {
+      act = 'AUTO_LINK'; who = '자동 · 기존 이슈에 연결';
+      why.push('confidence ' + c.toFixed(2) + ' ≥ ' + AUTO.toFixed(2));
+      why.push('강한 오류 신호가 있고 모순이 없습니다.');
+      why.push('2위와 차이 ' + m.toFixed(2) + ' > ' + MARGIN.toFixed(2));
+    } else if (c >= REVIEW) {
+      act = 'REVIEW'; who = '사람 검토';
+      if (c < AUTO) why.push('0.70 이상이지만 0.95 미만입니다.');
+      if (c >= AUTO && !strong.checked) why.push('강한 오류 신호가 없습니다.');
+      if (contra.checked) why.push('후보와 모순되는 사실이 있습니다.');
+      if (m <= MARGIN) why.push('1위와 2위 차이가 ' + MARGIN.toFixed(2) + ' 이하라 후보가 경합합니다.');
+    } else {
+      act = 'CREATE_NEW'; who = '자동 · 새 이슈 생성 후 분석';
+      why.push('confidence ' + c.toFixed(2) + ' < ' + REVIEW.toFixed(2));
+    }
+    var el = document.getElementById('act');
+    el.textContent = act;
+    el.classList.toggle('human', act === 'REVIEW');
+    document.getElementById('who').textContent = who;
+    document.getElementById('why').innerHTML = why.map(function (w) { return '<li>' + w + '</li>'; }).join('');
+  }
+  [conf, margin, hasCand, strong, contra].forEach(function (e) { e.addEventListener('input', decide); e.addEventListener('change', decide); });
+  decide();
+
+  // Theme toggle
+  var themeBtn = document.getElementById('theme');
+  var order = ['system', 'light', 'dark'], names = { system: '시스템', light: '라이트', dark: '다크' };
+  var mode = 'system';
+  try { mode = localStorage.getItem('clio-theme') || 'system'; } catch (e) {}
+  function applyTheme() {
+    if (mode === 'system') document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme', mode);
+    themeBtn.textContent = '테마: ' + names[mode];
+  }
+  themeBtn.addEventListener('click', function () {
+    mode = order[(order.indexOf(mode) + 1) % order.length];
+    try { localStorage.setItem('clio-theme', mode); } catch (e) {}
+    applyTheme();
+  });
+  applyTheme();
+})();
+</script>
+</body>
+</html>
