@@ -3,6 +3,43 @@
 Clio 서비스를 한 환경에서 조합하고 실행하기 위한 통합 저장소입니다. 각 서비스의 소스와 개발 이력은
 기존 저장소가 소유하며, 이 저장소는 검증된 서비스 커밋 조합과 공통 실행 구성을 관리합니다.
 
+## 빠른 시작 (배포 이미지)
+
+소스를 받지 않고 배포 이미지로 Clio 전체를 실행합니다. Docker와 OpenAI API 키만 있으면 됩니다.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/team-clio/clio-platform/main/compose.release.yaml -o compose.yaml
+echo "OPENAI_API_KEY=sk-..." > .env
+docker compose up -d
+```
+
+<http://localhost:3000>에서 관리 화면이 열립니다. 처음 실행할 때 임베딩 모델(약 639MB)을 내려받으므로
+몇 분 걸립니다. 프로젝트를 만들고 Git 저장소(HTTPS)를 연결하면, 동기화가 끝난 뒤부터 버그 처리가 시작됩니다.
+
+```bash
+curl -X POST http://localhost:3000/external-api/v1/projects/1/bugs \
+  -H 'content-type: application/json' \
+  -d '{"source": "API", "title": "결제 실패", "error_type": "PaymentException",
+       "stack_trace": ["PaymentService.approve"], "occurred_at": "2026-10-04T05:00:00Z"}'
+```
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `OPENAI_API_KEY` | (필수) | LLM 인증 정보 |
+| `CLIO_MODEL` | `openai:gpt-4.1-mini` | 모든 에이전트가 쓰는 모델 (`provider:model`) |
+| `CLIO_MODEL_BASE_URL` | | OpenAI 호환 엔드포인트 주소 |
+| `CLIO_ADMIN_PORT` | `3000` | 관리 화면 포트 |
+| `CLIO_VERSION` | `latest` | `ghcr.io/team-clio/*` 이미지 태그 |
+| `POSTGRES_PASSWORD` | `clio` | PostgreSQL 비밀번호. 최초 실행 전에만 바꿀 수 있습니다 |
+
+외부에 열리는 포트는 관리 화면 하나입니다. 관리 화면의 Nginx가 `/api`, `/external-api`를 서버로 넘기고,
+에이전트 전용 `/internal-api`는 노출하지 않습니다. 에이전트는 `langgraph dev` 서버로 실행되므로
+컨테이너를 재시작하면 처리 중이던 요청은 다시 보내야 합니다.
+
+업데이트는 `docker compose pull && docker compose up -d`, 데이터까지 지우려면 `docker compose down -v`입니다.
+
+아래부터는 서비스 소스를 함께 받아 직접 빌드하는 개발용 구성입니다.
+
 ## 구성
 
 | 경로 | 역할 |
@@ -100,3 +137,7 @@ Git에 포함되지 않는 루트 `.env`에만 저장합니다. Agent Graph 컨�
 
 - CI에서 core stack smoke test를 실행합니다.
 - Clio Server와 Agent Graph 사이의 실제 요청 경계를 연결합니다.
+
+## 라이선스
+
+[Apache License 2.0](LICENSE)

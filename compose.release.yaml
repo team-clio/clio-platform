@@ -1,0 +1,110 @@
+# 배포 이미지로 Clio 전체를 실행합니다. 소스에서 빌드하는 개발용 구성은 compose.yaml입니다.
+#   curl -fsSL https://raw.githubusercontent.com/team-clio/clio-platform/main/compose.release.yaml -o compose.yaml
+#   echo "OPENAI_API_KEY=sk-..." > .env
+#   docker compose up -d        → http://localhost:3000
+name: clio
+
+x-db-env: &db-env
+  POSTGRES_DB: clio
+  POSTGRES_USER: clio
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clio}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment: *db-env
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    configs:
+      - source: db-init
+        target: /docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clio -d clio"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  ollama:
+    image: ollama/ollama:0.32.3
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_EMBEDDING_MODEL: qwen3-embedding:0.6b
+    entrypoint: ["/bin/sh", "/bootstrap.sh"]
+    configs:
+      - source: ollama-bootstrap
+        target: /bootstrap.sh
+    volumes:
+      - ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD-SHELL", "OLLAMA_HOST=http://127.0.0.1:11434 ollama show qwen3-embedding:0.6b >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 120
+      start_period: 10s
+
+  server:
+    image: ghcr.io/team-clio/clio-server:${CLIO_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/clio
+      SPRING_DATASOURCE_USERNAME: clio
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-clio}
+      CLIO_AGENT_URL: http://agent:2024
+      CLIO_PCM_INSPECT_URL: http://agent:2025
+      CLIO_TRACING_SAMPLING_PROBABILITY: "0"
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  agent:
+    image: ghcr.io/team-clio/clio-agent-graph:${CLIO_VERSION:-latest}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      CLIO_MODEL: ${CLIO_MODEL:-openai:gpt-4.1-mini}
+      CLIO_SERVER_URL: http://server:8080
+      CLIO_DATABASE_URL: postgresql+psycopg://clio:${POSTGRES_PASSWORD:-clio}@postgres:5432/clio
+      CLIO_PCM_DATABASE_URL: postgresql://clio:${POSTGRES_PASSWORD:-clio}@postgres:5432/clio_pcm
+      CLIO_OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_EMBEDDING_MODEL: qwen3-embedding:0.6b
+    volumes:
+      - agent-data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+  admin:
+    image: ghcr.io/team-clio/clio-admin:${CLIO_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "${CLIO_ADMIN_PORT:-3000}:80"
+    depends_on:
+      - server
+
+configs:
+  db-init:
+    content: |
+      CREATE EXTENSION IF NOT EXISTS vector;
+      CREATE DATABASE clio_pcm;
+  ollama-bootstrap:
+    content: |
+      #!/bin/sh
+      set -eu
+      ollama serve &
+      pid=$$!
+      trap 'kill "$$pid" 2>/dev/null || true' INT TERM EXIT
+      until OLLAMA_HOST=http://127.0.0.1:11434 ollama list >/dev/null 2>&1; do sleep 1; done
+      OLLAMA_HOST=http://127.0.0.1:11434 ollama pull "$${OLLAMA_EMBEDDING_MODEL}"
+      wait "$$pid"
+
+volumes:
+  postgres:
+  ollama:
+  agent-data:
