@@ -272,6 +272,15 @@ input[type="range"] { width: 100%; accent-color: var(--ink); }
 .arch-notes h3 { font-size: 15px; font-weight: 600; }
 .arch-notes p { font-size: 14px; color: var(--ink-2); }
 @media (max-width: 760px) { .arch-notes { grid-template-columns: 1fr; } }
+.graph-sub { margin-top: 64px; display: flex; flex-direction: column; gap: 16px; }
+.graph-sub > h3 { font-size: 20px; font-weight: 700; letter-spacing: -.015em; }
+.graph-sub > p { color: var(--ink-2); max-width: 46em; }
+.graph-sub figure { margin: 8px 0 0; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.graph-sub .arch svg { min-width: 820px; }
+.graph-sub figcaption { font: 400 12px/1.6 var(--mono); color: var(--ink-3); }
+.graph-sub figcaption i { display: inline-block; width: 10px; height: 10px; margin: 0 6px 0 0; vertical-align: -1px; border: 1px solid var(--ink); background: var(--panel); }
+.graph-sub figcaption i.h { border-color: var(--human); background: var(--human-soft); }
+.graph-sub figcaption span + span { margin-left: 16px; }
 
 /* Quickstart */
 .steps { list-style: none; margin: 0; padding: 0; counter-reset: s; border-top: 1px solid var(--ink); }
@@ -684,8 +693,8 @@ uv run clio-benchmark report --format html</pre>
           <rect x="620" y="40" width="250" height="150" fill="var(--code-bg)" stroke="var(--ink)" stroke-width="1.5"/>
           <text x="638" y="70" font-size="11" fill="var(--code-dim)">PYTHON 3.11 · LANGGRAPH · :2024</text>
           <text x="638" y="96" font-size="16" font-weight="600" fill="var(--code-fg)">clio-agent-graph</text>
-          <text x="638" y="126" font-size="11" fill="var(--code-fg)">Normalizer · Matcher</text>
-          <text x="638" y="146" font-size="11" fill="var(--code-fg)">Issue Analyzer · RAG</text>
+          <text x="638" y="126" font-size="11" fill="var(--code-fg)">리포트 처리 · 이슈 매칭</text>
+          <text x="638" y="146" font-size="11" fill="var(--code-fg)">이슈 분석 · 문서·코드 색인</text>
           <text x="638" y="166" font-size="11" fill="var(--code-fg)">PCM Inspect :2025 · Git mirror</text>
           <!-- db -->
           <rect x="300" y="290" width="350" height="50" fill="var(--panel)" stroke="var(--ink)"/>
@@ -713,6 +722,134 @@ uv run clio-benchmark report --format html</pre>
         <div><h3>데이터 소유권이 나뉨</h3><p>Bug·Issue·실행 상태·분석 결과는 서버가, 정규화 리포트·검색 색인·PCM·Git mirror는 에이전트 그래프가 소유합니다. 에이전트는 업무 테이블을 직접 고치지 않고 좁은 internal API로 요청합니다.</p></div>
         <div><h3>코드는 커밋 단위로 읽음</h3><p>검색·목록·읽기 모두 고정된 커밋을 씁니다. 경로 탈출은 막고 secret 파일은 읽지 않으며 값은 가립니다.</p></div>
         <div><h3>중복 실행에 안전함</h3><p>워크플로는 PENDING → RUNNING → COMPLETED / FAILED로 추적하고 <code>request_id</code>와 요청 hash로 중복 적용을 막습니다. 검토 필요는 실패가 아니라 정상 결과입니다.</p></div>
+      </div>
+
+      <div class="graph-sub">
+        <h3>에이전트 그래프 내부</h3>
+        <p>모든 요청은 하나의 LangGraph 그래프로 들어옵니다. 어느 작업을 할지는 LLM이 아니라 요청의 <code>request_type</code>이 정하고, 각 작업은 독립된 서브그래프로 실행됩니다.</p>
+        <figure>
+          <div class="arch">
+            <svg viewBox="0 0 900 420" role="img" aria-labelledby="graph-t">
+              <title id="graph-t">clio-server의 비동기 요청을 validate_request가 검증하고, route_request가 request_type에 따라 report_processing, issue_analysis, document_sync, repository_sync, code_change_sync, code_evidence 중 하나의 서브그래프로 보낸 뒤 finalize_request에서 결과를 정리한다.</title>
+              <defs>
+                <marker id="gh" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ink)"/></marker>
+              </defs>
+              <rect x="0" y="0" width="900" height="420" fill="var(--paper)"/>
+              <text x="30" y="70" font-size="11" fill="var(--ink-3)">clio-server의 async 요청</text>
+              <rect x="30" y="95" width="160" height="44" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="110" y="122" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">validate_request</text>
+              <rect x="30" y="183" width="160" height="56" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/>
+              <text x="110" y="206" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">route_request</text>
+              <text x="110" y="225" font-size="10" fill="var(--ink-3)" text-anchor="middle">request_type으로 분기</text>
+
+              <rect x="270" y="30" width="340" height="52" fill="var(--panel)" stroke="var(--ink)"/>
+              <text x="286" y="52" font-size="13" font-weight="600" fill="var(--ink)">report_processing</text>
+              <text x="596" y="52" font-size="10" fill="var(--ink-3)" text-anchor="end">process_report</text>
+              <text x="286" y="71" font-size="11" fill="var(--ink-2)">정규화 → 후보 검색 → 매칭 → 새 이슈면 분석</text>
+              <rect x="270" y="92" width="340" height="52" fill="var(--panel)" stroke="var(--ink)"/>
+              <text x="286" y="114" font-size="13" font-weight="600" fill="var(--ink)">issue_analysis</text>
+              <text x="596" y="114" font-size="10" fill="var(--ink-3)" text-anchor="end">analyze_issue</text>
+              <text x="286" y="133" font-size="11" fill="var(--ink-2)">문서·코드·이력 검색 → 분석 → 품질 게이트</text>
+              <rect x="270" y="154" width="340" height="52" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="286" y="176" font-size="13" font-weight="600" fill="var(--ink)">document_sync</text>
+              <text x="596" y="176" font-size="10" fill="var(--ink-3)" text-anchor="end">document_added · deleted</text>
+              <text x="286" y="195" font-size="11" fill="var(--ink-2)">문서 색인 추가·삭제</text>
+              <rect x="270" y="216" width="340" height="52" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="286" y="238" font-size="13" font-weight="600" fill="var(--ink)">repository_sync</text>
+              <text x="596" y="238" font-size="10" fill="var(--ink-3)" text-anchor="end">repository_added · removed</text>
+              <text x="286" y="257" font-size="11" fill="var(--ink-2)">저장소 전체를 커밋 단위로 색인</text>
+              <rect x="270" y="278" width="340" height="52" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="286" y="300" font-size="13" font-weight="600" fill="var(--ink)">code_change_sync</text>
+              <text x="596" y="300" font-size="10" fill="var(--ink-3)" text-anchor="end">repository_changed</text>
+              <text x="286" y="319" font-size="11" fill="var(--ink-2)">바뀐 파일만 다시 색인</text>
+              <rect x="270" y="340" width="340" height="52" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="286" y="362" font-size="13" font-weight="600" fill="var(--ink)">code_evidence</text>
+              <text x="596" y="362" font-size="10" fill="var(--ink-3)" text-anchor="end">read_code_evidence</text>
+              <text x="286" y="381" font-size="11" fill="var(--ink-2)">고정 커밋의 코드 근거 읽기</text>
+
+              <rect x="670" y="189" width="200" height="44" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="770" y="216" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">finalize_request</text>
+              <text x="670" y="262" font-size="11" fill="var(--ink-3)">결과는 internal-api로</text>
+              <text x="670" y="278" font-size="11" fill="var(--ink-3)">서버에 반영</text>
+
+              <g stroke="var(--ink)" stroke-width="1.2" fill="none">
+                <path d="M190 211 H240 M240 56 V366 M610 56 H640 M610 118 H640 M610 180 H640 M610 242 H640 M610 304 H640 M610 366 H640 M640 56 V366"/>
+              </g>
+              <g stroke="var(--ink)" stroke-width="1.2" fill="none" marker-end="url(#gh)">
+                <path d="M110 80 V93"/>
+                <path d="M110 139 V181"/>
+                <path d="M240 56 H268"/>
+                <path d="M240 118 H268"/>
+                <path d="M240 180 H268"/>
+                <path d="M240 242 H268"/>
+                <path d="M240 304 H268"/>
+                <path d="M240 366 H268"/>
+                <path d="M640 211 H668"/>
+              </g>
+            </svg>
+          </div>
+          <figcaption><span><i></i>LLM 판단이 들어가는 단계</span><span>오른쪽 위 = 들어오는 request_type</span></figcaption>
+        </figure>
+
+        <p>이슈 분석은 세 곳을 동시에 검색한 뒤 원인을 분석하고, 품질 게이트를 통과한 결과만 저장합니다. 근거가 모자라면 억지로 결론 내지 않고 사람 검토로 넘깁니다. 리포트 처리에서 새 이슈가 생길 때도 같은 서브그래프를 씁니다.</p>
+        <figure>
+          <div class="arch">
+            <svg viewBox="0 0 900 380" role="img" aria-labelledby="analysis-t">
+              <title id="analysis-t">prepare_analysis 뒤 search_documents, search_code, search_history를 병렬로 실행하고 analyze_issue, plan_resolution, quality_gate를 거친다. 통과하면 assess_risk와 save_analysis로 저장하고, 재시도면 analyze_issue로 돌아가며, 근거가 부족하거나 검토가 필요하면 mark_analysis_for_review로 사람 검토에 넘긴다.</title>
+              <rect x="0" y="0" width="900" height="380" fill="var(--paper)"/>
+              <rect x="20" y="128" width="150" height="44" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="95" y="155" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">prepare_analysis</text>
+              <rect x="210" y="60" width="160" height="44" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="290" y="87" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">search_documents</text>
+              <rect x="210" y="128" width="160" height="44" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="290" y="155" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">search_code</text>
+              <rect x="210" y="196" width="160" height="44" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="290" y="223" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">search_history</text>
+              <rect x="410" y="122" width="150" height="56" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.5"/>
+              <text x="485" y="145" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">analyze_issue</text>
+              <text x="485" y="164" font-size="10" fill="var(--ink-3)" text-anchor="middle">근거로 원인 분석</text>
+              <rect x="590" y="128" width="150" height="44" fill="var(--panel)" stroke="var(--ink)"/>
+              <text x="665" y="155" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">plan_resolution</text>
+              <rect x="765" y="122" width="115" height="56" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.5"/>
+              <text x="822" y="145" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">quality_gate</text>
+              <text x="822" y="164" font-size="10" fill="var(--ink-3)" text-anchor="middle">근거·품질 검사</text>
+              <rect x="560" y="300" width="150" height="44" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="635" y="327" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">assess_risk</text>
+              <rect x="740" y="300" width="140" height="44" fill="var(--paper)" stroke="var(--ink)"/>
+              <text x="810" y="327" font-size="12" font-weight="600" fill="var(--ink)" text-anchor="middle">save_analysis</text>
+              <rect x="210" y="300" width="260" height="56" fill="var(--human-soft)" stroke="var(--human)" stroke-width="1.5"/>
+              <text x="340" y="323" font-size="12" font-weight="600" fill="var(--human)" text-anchor="middle">mark_analysis_for_review</text>
+              <text x="340" y="342" font-size="10" fill="var(--human)" text-anchor="middle">사람 검토로 넘김</text>
+
+              <g stroke="var(--ink)" stroke-width="1.2" fill="none">
+                <path d="M170 150 H190 M190 82 V218 M370 82 H390 M370 150 H390 M370 218 H390 M390 82 V218"/>
+              </g>
+              <g stroke="var(--ink)" stroke-width="1.2" fill="none" marker-end="url(#gh)">
+                <path d="M190 82 H208"/>
+                <path d="M190 150 H208"/>
+                <path d="M190 218 H208"/>
+                <path d="M390 150 H408"/>
+                <path d="M560 150 H588"/>
+                <path d="M740 150 H763"/>
+                <path d="M822 122 V40 H485 V120"/>
+                <path d="M850 178 V280 H635 V298"/>
+                <path d="M710 322 H738"/>
+              </g>
+              <g stroke="var(--human)" stroke-width="1.2" fill="none">
+                <path d="M790 178 V250 H487"/>
+              </g>
+              <path d="M485 178 V328 H472" stroke="var(--human)" stroke-width="1.2" fill="none" marker-end="url(#gh-h)"/>
+              <defs>
+                <marker id="gh-h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--human)"/></marker>
+              </defs>
+              <text x="653" y="32" font-size="10" fill="var(--ink-3)" text-anchor="middle">재시도</text>
+              <text x="858" y="232" font-size="10" fill="var(--ink-3)">통과</text>
+              <text x="640" y="243" font-size="10" fill="var(--human)" text-anchor="middle">검토 필요</text>
+              <text x="493" y="215" font-size="10" fill="var(--human)">근거 부족</text>
+            </svg>
+          </div>
+          <figcaption><span><i></i>LLM 판단</span><span><i class="h"></i>사람이 이어받는 지점</span></figcaption>
+        </figure>
       </div>
     </div>
   </div>
