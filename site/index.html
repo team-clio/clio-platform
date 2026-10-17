@@ -8,6 +8,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<script>
+  // Apply the saved theme before first paint so a dark choice never flashes light.
+  try { var t = localStorage.getItem('clio-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
 <style>
 /* Layout: Swiss spec sheet. 12-column grid with exposed hairlines, radius 0.
    Vermilion marks where a person steps in; ink marks what runs automatically. */
@@ -322,7 +326,14 @@ footer .wrap { padding-block: 40px; display: grid; grid-template-columns: repeat
 .foot-cols a:hover { color: var(--ink); text-decoration: underline; }
 .foot-base a { color: inherit; }
 .foot-base { grid-column: 1 / -1; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 20px; border-top: 1px solid var(--rule); color: var(--ink-3); font: 400 12px/1.5 var(--mono); }
-.theme-toggle { font: inherit; background: none; border: 1px solid var(--rule-strong); color: var(--ink-2); padding: 6px 10px; cursor: pointer; }
+.theme-toggle {
+  display: inline-grid; place-items: center; width: 38px; height: 38px; padding: 0;
+  background: transparent; border: 1px solid var(--rule-strong); color: var(--ink-2); cursor: pointer;
+}
+.theme-toggle:hover { color: var(--ink); border-color: var(--ink); }
+.theme-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.theme-toggle svg { display: none; }
+.theme-toggle[data-mode="system"] .i-system, .theme-toggle[data-mode="light"] .i-light, .theme-toggle[data-mode="dark"] .i-dark { display: block; }
 @media (max-width: 760px) { .foot-brand, .foot-cols { grid-column: 1 / -1; } }
 </style>
 </head>
@@ -345,6 +356,11 @@ footer .wrap { padding-block: 40px; display: grid; grid-template-columns: repeat
         <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         GitHub
       </a>
+      <button class="theme-toggle" type="button" id="theme" data-mode="system" aria-label="테마: 시스템" title="테마: 시스템">
+        <svg class="i-system" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor" stroke="none"/></svg>
+        <svg class="i-light" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.4 1.4M11.55 11.55l1.4 1.4M3.05 12.95l1.4-1.4M11.55 4.45l1.4-1.4"/></svg>
+        <svg class="i-dark" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 9.6A5.75 5.75 0 0 1 6.4 2.5a5.75 5.75 0 1 0 7.1 7.1z"/></svg>
+      </button>
     </div>
   </div>
 </nav>
@@ -822,7 +838,6 @@ docker compose up -d</pre>
     </div>
     <div class="foot-base">
       <span>© 2026 Clio contributors · <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License 2.0</a></span>
-      <button class="theme-toggle" type="button" id="theme">테마: 시스템</button>
     </div>
   </div>
 </footer>
@@ -919,10 +934,14 @@ docker compose up -d</pre>
   var order = ['system', 'light', 'dark'], names = { system: '시스템', light: '라이트', dark: '다크' };
   var mode = 'system';
   try { mode = localStorage.getItem('clio-theme') || 'system'; } catch (e) {}
+  if (order.indexOf(mode) < 0) mode = 'system';
   function applyTheme() {
     if (mode === 'system') document.documentElement.removeAttribute('data-theme');
     else document.documentElement.setAttribute('data-theme', mode);
-    themeBtn.textContent = '테마: ' + names[mode];
+    var next = order[(order.indexOf(mode) + 1) % order.length];
+    themeBtn.dataset.mode = mode;
+    themeBtn.setAttribute('aria-label', '테마: ' + names[mode] + ' (눌러서 ' + names[next] + (next === 'system' ? '으로' : '로') + ' 변경)');
+    themeBtn.title = '테마: ' + names[mode];
   }
   themeBtn.addEventListener('click', function () {
     mode = order[(order.indexOf(mode) + 1) % order.length];
